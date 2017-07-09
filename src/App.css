@@ -37,7 +37,6 @@ code {
 /* NAVBAR */
 
 .navbar {
-  position: fixed;
   padding: 5px;
   background: #0c1a2b;
   font-family: 'Oswald', 'Arial Narrow', sans-serif;
@@ -70,4 +69,18 @@ code {
 .ensLoanContainer label {
   display: block;
   margin: 32px 0;
+}
+
+li.react-tabs__tab {
+  display: inline-block;
+  margin-right: 100px;
+  cursor: pointer;
+}
+
+li.react-tabs__tab--selected {
+  text-decoration: underline;
+}
+
+div.react-tabs__tab-panel {
+  padding: 0 40px;
 }
