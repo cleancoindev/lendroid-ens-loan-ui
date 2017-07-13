@@ -16,28 +16,29 @@ class App extends Component {
     super(props)
 
     this.state = {
-      marketContractAddress: '0x798bf2cb619c76f73c5f76008d5cc6f4883f7f11',
-      collateralManagerAddress: '0x8a580e47c638e0c42d79ab86e90ed78279fe5d1a',
+      loanManagerContractAddress: '0xf437f3010633136b507241ff0c112edc3b3de974',
       userAccount: null,
       web3: null,
       ens: null,
-      marketInstance: null,
-      dailyInterestRate: null,
+      loanManager: null,
+      isLoanManagerActive: null,
+      interestRatePerDay: null,
+      maxLoanPeriodDays: null,
+      lendableLevel: null,
+      collateralManagerAddress: '0x8a580e47c638e0c42d79ab86e90ed78279fe5d1a',
       etherLocked: null,
       loanOffered: null,
       loanPeriod: null,
       isOwner: false,
       deedTransferred: false,
       deedReclaimed: false,
-      domainNameTransferred: false,
-      domainNameReclaimed: false,
 }
 
+    this.dateFromTimestamp = this.dateFromTimestamp.bind(this);
     this.handleEnsNameSubmit = this.handleEnsNameSubmit.bind(this);
     this.handleRequestLoanSubmit = this.handleRequestLoanSubmit.bind(this);
     this.handleTransferDeedSubmit = this.handleTransferDeedSubmit.bind(this);
     this.handleReclaimDeedSubmit = this.handleReclaimDeedSubmit.bind(this);
-    this.handleReclaimDomainSubmit = this.handleReclaimDomainSubmit.bind(this);
     this.handleEscapeHatchClaimDeedSubmit = this.handleEscapeHatchClaimDeedSubmit.bind(this);
     this.namehash = this.namehash.bind(this);
     this.onTabChange = this.onTabChange.bind(this);
@@ -87,8 +88,7 @@ class App extends Component {
 
       this.setState({
         userAccount: accounts[0],
-        // marketInstance: this.state.web3.eth.contract(MarketContract['abi']).at('0x18Bb3E9fFa18F233564613e4Ed600966D0A122B3'),
-        marketInstance: this.state.web3.eth.contract(MarketContract['abi']).at(this.state.marketContractAddress),
+        loanManager: this.state.web3.eth.contract(MarketContract['abi']).at(this.state.loanManagerContractAddress),
         ens: ensContract.at('0xb766772c58b098d8412143a473aed6bc41c95bde'),
         ethRegistrar: registrarContract.at('0xa5c650649b2a8e3f160035cee17b3c7e94b0805f'),
         collateralManager: collateralManagerContract.at(this.state.collateralManagerAddress)
@@ -96,61 +96,84 @@ class App extends Component {
       
       var _that = this;
       // Populate state from Market deployment
-      _that.state.marketInstance.interestRatePerDay.call(function(err, result){
+      _that.state.loanManager.interestRatePerDay.call(function(err, result){
         if (err) {
           alert(err);
         }
         else {
           // Update state with the result.
-          _that.setState({dailyInterestRate: result.c[0]})
+          _that.setState({interestRatePerDay: result.c[0]})
         }
       });
-      
+      _that.state.loanManager.maxLoanPeriodDays.call(function(err, result){
+        if (err) {
+          alert(err);
+        }
+        else {
+          // Update state with the result.
+          _that.setState({maxLoanPeriodDays: result.c[0]})
+        }
+      });
+      _that.state.loanManager.lendableLevel.call(function(err, result){
+        if (err) {
+          alert(err);
+        }
+        else {
+          // Update state with the result.
+          _that.setState({lendableLevel: result.c[0]})
+        }
+      });
     })
   }
 
   namehash(name) { var node = '0x0000000000000000000000000000000000000000000000000000000000000000'; if (name != '') { var labels = name.split("."); for(var i = labels.length - 1; i >= 0; i--) { node = this.state.web3.sha3(node + this.state.web3.sha3(labels[i]).slice(2), {encoding: 'hex'}); } } return node.toString(); }
 
+  dateFromTimestamp(timestamp) {
+    return new Date(timestamp*1000).toString();
+  }
+
   handleEnsNameSubmit(event) {
     var _that = this,
-        ensDomain = _that.namehash(_that.ensNameInput.value);
-    _that.state.ens.owner.call(ensDomain, function(err, result){
+        ensDomain = _that.namehash(_that.ensNameInput.value),
+        onlyDomain = _that.ensNameInput.value.split('.')[0];
+    _that.state.ethRegistrar.entries.call(_that.state.web3.sha3(onlyDomain), function(err, result){
       if (err) {
         alert(err);
       }
       else {
-        _that.setState({
-          isOwner: result === _that.state.userAccount
-        })
-        // Populate state with Auction parameters
-        if (!_that.state.isOwner) {
-          alert('It appears this domain does not belong to you. Please specify a domain that you own.')
-          _that.ensNameInput.value = '';
+        console.log(result);
+        _that.state.web3.eth.contract([{ "constant": true, "inputs": [], "name": "creationDate", "outputs": [ { "name": "", "type": "uint256" } ], "payable": false, "type": "function" }, { "constant": false, "inputs": [], "name": "destroyDeed", "outputs": [], "payable": false, "type": "function" }, { "constant": false, "inputs": [ { "name": "newOwner", "type": "address" } ], "name": "setOwner", "outputs": [], "payable": false, "type": "function" }, { "constant": true, "inputs": [], "name": "registrar", "outputs": [ { "name": "", "type": "address" } ], "payable": false, "type": "function" }, { "constant": true, "inputs": [], "name": "value", "outputs": [ { "name": "", "type": "uint256" } ], "payable": false, "type": "function" }, { "constant": true, "inputs": [], "name": "previousOwner", "outputs": [ { "name": "", "type": "address" } ], "payable": false, "type": "function" }, { "constant": true, "inputs": [], "name": "owner", "outputs": [ { "name": "", "type": "address" } ], "payable": false, "type": "function" }, { "constant": false, "inputs": [ { "name": "newValue", "type": "uint256" }, { "name": "throwOnFailure", "type": "bool" } ], "name": "setBalance", "outputs": [], "payable": false, "type": "function" }, { "constant": false, "inputs": [ { "name": "refundRatio", "type": "uint256" } ], "name": "closeDeed", "outputs": [], "payable": false, "type": "function" }, { "constant": false, "inputs": [ { "name": "newRegistrar", "type": "address" } ], "name": "setRegistrar", "outputs": [], "payable": false, "type": "function" }, { "inputs": [ { "name": "_owner", "type": "address" } ], "payable": true, "type": "constructor" }, { "anonymous": false, "inputs": [ { "indexed": false, "name": "newOwner", "type": "address" } ], "name": "OwnerChanged", "type": "event" }, { "anonymous": false, "inputs": [], "name": "DeedClosed", "type": "event" }])
+          .at(result[1]).owner.call(function(err, deedOwnerAddress){
           _that.setState({
-            etherLocked: null,
-            loanOffered: null,
-            loanPeriod: null,
+            isOwner: deedOwnerAddress === _that.state.userAccount
           })
-        }
-        else {
-          var onlyDomain = _that.ensNameInput.value.split('.')[0];
-          _that.state.ethRegistrar.entries.call(_that.state.web3.sha3(onlyDomain), function(err, result){
-            var value = _that.state.web3.fromWei(result[3], 'ether').toString(),
-              loanAmount = (1 - (_that.state.dailyInterestRate * 0.01) ) * value,
-              days = 30;
+          // Populate state with Auction parameters
+          if (!_that.state.isOwner) {
+            alert('It appears this domain does not belong to you. Please specify a domain that you own.')
+            _that.ensNameInput.value = '';
             _that.setState({
+              etherLocked: null,
+              loanOffered: null,
+              loanPeriod: null,
+            })
+          }
+          else {
+            var value = _that.state.web3.fromWei(result[3], 'ether').toString(),
+              loanAmount = _that.state.lendableLevel * value;
+            var registrationtDate = new Date(result[2].c[0]*1000),
+              days = _that.dateFromTimestamp(registrationtDate.setDate(registrationtDate.getDate() + 30).toString());
+            console.log(registrationtDate);
+              _that.setState({
               ensEntry: result,
               ensLoanNode: null,
               etherLocked: value,
               loanOffered: loanAmount,
-              loanPeriod: days,
+              loanPeriod: registrationtDate.toString(),
               deedTransferred: false,
               deedReclaimed: false,
-              domainNameTransferred: false,
-              domainNameReclaimed: false,
-            })
-          });
-        }
+            });
+          }
+        });
       }
     });
     event.preventDefault();
@@ -158,11 +181,9 @@ class App extends Component {
 
   handleTransferDeedSubmit(event) {
     console.log('handleTransferDeedSubmit');
-    var _that = this,
-      deedContract = _that.state.web3.eth.contract([{ "constant": true, "inputs": [], "name": "creationDate", "outputs": [ { "name": "", "type": "uint256" } ], "payable": false, "type": "function" }, { "constant": false, "inputs": [], "name": "destroyDeed", "outputs": [], "payable": false, "type": "function" }, { "constant": false, "inputs": [ { "name": "newOwner", "type": "address" } ], "name": "setOwner", "outputs": [], "payable": false, "type": "function" }, { "constant": true, "inputs": [], "name": "registrar", "outputs": [ { "name": "", "type": "address" } ], "payable": false, "type": "function" }, { "constant": true, "inputs": [], "name": "value", "outputs": [ { "name": "", "type": "uint256" } ], "payable": false, "type": "function" }, { "constant": true, "inputs": [], "name": "previousOwner", "outputs": [ { "name": "", "type": "address" } ], "payable": false, "type": "function" }, { "constant": true, "inputs": [], "name": "owner", "outputs": [ { "name": "", "type": "address" } ], "payable": false, "type": "function" }, { "constant": false, "inputs": [ { "name": "newValue", "type": "uint256" }, { "name": "throwOnFailure", "type": "bool" } ], "name": "setBalance", "outputs": [], "payable": false, "type": "function" }, { "constant": false, "inputs": [ { "name": "refundRatio", "type": "uint256" } ], "name": "closeDeed", "outputs": [], "payable": false, "type": "function" }, { "constant": false, "inputs": [ { "name": "newRegistrar", "type": "address" } ], "name": "setRegistrar", "outputs": [], "payable": false, "type": "function" }, { "inputs": [ { "name": "_owner", "type": "address" } ], "payable": true, "type": "constructor" }, { "anonymous": false, "inputs": [ { "indexed": false, "name": "newOwner", "type": "address" } ], "name": "OwnerChanged", "type": "event" }, { "anonymous": false, "inputs": [], "name": "DeedClosed", "type": "event" }]);
+    var _that = this;
     _that.setState({
       deedTransferred: true,
-      domainNameTransferred: true
     })
     // Populate state from Market deployment
     var newDeedOwnerAddress = _that.state.collateralManagerAddress,
@@ -177,7 +198,7 @@ class App extends Component {
       // }
       // else {
       //   // Update state with the result.
-      //   _that.setState({dailyInterestRate: result.c[0]})
+      //   _that.setState({interestRatePerDay: result.c[0]})
       // }
     });
     event.preventDefault();
@@ -187,7 +208,7 @@ class App extends Component {
     console.log('handleEscapeHatchClaimDeedSubmit');
     var _that = this,
       onlyDomain = _that.ensNameInput.value.split('.')[0];
-    _that.state.marketInstance.escapeHatchClaimDeed.sendTransaction(onlyDomain, {from: _that.state.userAccount}, function(err, result) {
+    _that.state.loanManager.escapeHatchClaimDeed.sendTransaction(onlyDomain, {from: _that.state.userAccount}, function(err, result) {
       console.log('err');
       console.log(err);
       console.log('result');
@@ -204,38 +225,14 @@ class App extends Component {
     event.preventDefault();
   }
 
-  handleReclaimDomainSubmit(event) {
-    console.log('handleReclaimDomainSubmit');
-    var _that = this,
-      onlyDomain = _that.ensNameInput.value.split('.')[0];
-    _that.setState({
-      domainNameReclaimed: true
-    })
-    // _that.state.marketInstance.reclaimDeed(onlyDomain, {from: _that.state.userAccount}, function(err, result) {
-    //   console.log('err');
-    //   console.log(err);
-    //   console.log('result');
-    //   console.log(result);
-    //   // if (err) {
-    //   //   alert(err);
-    //   // }
-    //   // else {
-    //   //   // Update state with the result.
-    //   //   _that.setState({dailyInterestRate: result.c[0]})
-    //   // }
-    // });
-    event.preventDefault();
-  }
-
   handleReclaimDeedSubmit(event) {
     console.log('handleReclaimDeedSubmit');
     var _that = this,
       onlyDomain = _that.ensNameInput.value.split('.')[0];
     _that.setState({
       deedReclaimed: true,
-      domainNameReclaimed: true
     })
-    console.log(_that.state.marketInstance);
+    console.log(_that.state.loanManager);
     _that.state.collateralManager.withdrawCollateral.sendTransaction(_that.state.web3.sha3(onlyDomain), {from: _that.state.userAccount}, function(err, result) {
       console.log('err');
       console.log(err);
@@ -256,13 +253,16 @@ class App extends Component {
   handleRequestLoanSubmit(event) {
     var _that = this;
     // Populate state from Market deployment
-    this.state.marketInstance.newLoan.call(_that.ensNameInput.value, function(err, result){
+    this.state.loanManager.newLoan.sendTransaction(_that.state.web3.sha3(_that.ensNameInput.value.split('.')[0]), {from: _that.state.userAccount}, function(err, result) {
+      console.log(err);
+      console.log(result);
       if (err) {
         alert(err);
       }
       else {
         // Update state with the result.
-        _that.setState({dailyInterestRate: result.c[0]})
+        console.log(result);
+        // _that.setState({interestRatePerDay: result.c[0]})
       }
     });
     event.preventDefault();
@@ -283,7 +283,7 @@ class App extends Component {
           <TabPanel>
             <div className="pure-g">
               <div className="pure-u-1-1">
-                <h2>Contract : {this.state.marketContractAddress}</h2>
+                <h2>Loan Manager Contract Address: {this.state.loanManagerContractAddress}</h2>
                 <h2>
                   {this.state.userAccount}
                   <br />
@@ -303,7 +303,7 @@ class App extends Component {
                 </form>
               </div>
               <div className="pure-u-1-1 ensLoanContainer">
-                {((this.state.isOwner === true) && (this.state.deedTransferred === false) && (this.state.domainNameTransferred ===false)) &&
+                {((this.state.deedTransferred === false)) &&
                   <div>
                     <br />
                     <form onSubmit={this.handleTransferDeedSubmit}>
@@ -312,7 +312,7 @@ class App extends Component {
                   </div>
                 }
                 <br />
-                {
+                {(this.state.deedTransferred === true) &&
                   <div>
                     <br />
                     <form onSubmit={this.handleReclaimDeedSubmit}>
@@ -320,20 +320,12 @@ class App extends Component {
                     </form>
                   </div>
                 }
-                {(this.state.domainNameTransferred === true) && (this.state.domainNameReclaimed === false) &&
-                  <div>
-                    <br />
-                    <form onSubmit={this.handleReclaimDomainSubmit}>
-                      <input type="submit" value="Reclaim Domain Name" />
-                    </form>
-                  </div>
-                }
-                {((this.state.domainNameReclaimed === true) && (this.state.deedReclaimed === false)) &&
+                {(this.state.deedReclaimed === false) &&
                   <form onSubmit={this.handleRequestLoanSubmit}>
                     <label>Ether Locked : {this.state.etherLocked}</label>
-                    <label>Interest Rate : {this.state.dailyInterestRate}</label>
+                    <label>Interest Rate : {this.state.interestRatePerDay}</label>
                     <label>Loan Amount Offered : {this.state.loanOffered}</label>
-                    <label>Loan Period : {this.state.loanPeriod}</label>
+                    <label>Loan Period Ends: {this.state.loanPeriod}</label>
                     <input type="submit" value="Request Loan" />
                   </form>
                 }
