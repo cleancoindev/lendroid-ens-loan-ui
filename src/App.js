@@ -25,8 +25,8 @@ class App extends Component {
     super(props)
 
     this.state = {
-      loanManagerContractAddress: '0x8f89375899f003a32582a494fde6a163caf87da3',
-      collateralManagerAddress: '0x8a580e47c638e0c42d79ab86e90ed78279fe5d1a',
+      loanManagerContractAddress: '0x2e1b339111a779ff68ca261afb045937cbfc9bc1',
+      collateralManagerAddress: '0xe1f710cc425233320b04f74f231efe77fd162f55',
       userAccount: null,
       web3: null,
       ens: null,
@@ -91,30 +91,15 @@ class App extends Component {
           />
           <h2 style={{textAlign: 'center'}}>{this.state.userAccount ? <span>Welcome { this.state.userAccount }!</span> : <span>Please authenticate via MetaMask</span> }</h2>
           {(this.state.userAccount) && (this.state.web3) && 
-            <Tabs>
-              <Tab label="Borrow a New Loan">
-                <LoanCreator 
-                  collateralManagerAddress={this.state.collateralManagerAddress}
-                  userAccount={this.state.userAccount}
-                  web3={this.state.web3}
-                  ens={this.state.ens}
-                  loanManager={this.state.loanManager}
-                  collateralManager={this.state.collateralManager}
-                  ethRegistrar={this.state.ethRegistrar}
-                />
-              </Tab>
-              <Tab label="Manage Your Existing Loan">
-                <LoanTerminator
-                  collateralManagerAddress={this.state.collateralManagerAddress}
-                  userAccount={this.state.userAccount}
-                  web3={this.state.web3}
-                  ens={this.state.ens}
-                  loanManager={this.state.loanManager}
-                  collateralManager={this.state.collateralManager}
-                  ethRegistrar={this.state.ethRegistrar}
-                />
-              </Tab>
-            </Tabs>
+            <LoanCreator 
+              collateralManagerAddress={this.state.collateralManagerAddress}
+              userAccount={this.state.userAccount}
+              web3={this.state.web3}
+              ens={this.state.ens}
+              loanManager={this.state.loanManager}
+              collateralManager={this.state.collateralManager}
+              ethRegistrar={this.state.ethRegistrar}
+            />
           }
         </div>
       </MuiThemeProvider>

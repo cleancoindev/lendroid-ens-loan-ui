@@ -18,6 +18,8 @@ import Checkbox from 'material-ui/Checkbox'
 import RaisedButton from 'material-ui/RaisedButton';
 import FlatButton from 'material-ui/FlatButton';
 import TextField from 'material-ui/TextField';
+import SelectField from 'material-ui/SelectField';
+import MenuItem from 'material-ui/MenuItem';
 
 // Old CSS
 import '../css/oswald.css'
@@ -47,6 +49,13 @@ class LoanCreator extends Component {
         etherLocked: null,
         loanOffered: null,
         loanPeriod: null,
+        // Collateral specifics
+        collateralType: 'ENS',
+        CollateralTypeENS: 'ENS',
+        CollateralTypeBNT: 'BNT (Coming soon)',
+        CollateralTypeMLN: 'MLN (Coming soon)',
+        CollateralTypeDGX: 'DGX (Coming soon)',
+        CollateralTypeSNT: 'SNT (Coming soon)',
         // Loan specifics
         ensNameInput: '',
         isOwner: false,
@@ -116,7 +125,7 @@ class LoanCreator extends Component {
     })
   }
 
-  namehash(name) { var node = '0x0000000000000000000000000000000000000000000000000000000000000000'; if (name != '') { var labels = name.split("."); for(var i = labels.length - 1; i >= 0; i--) { node = this.state.web3.sha3(node + this.state.web3.sha3(labels[i]).slice(2), {encoding: 'hex'}); } } return node.toString(); }
+  namehash(name) { var node = '0x0000000000000000000000000000000000000000000000000000000000000000'; if (name !== '') { var labels = name.split("."); for(var i = labels.length - 1; i >= 0; i--) { node = this.state.web3.sha3(node + this.state.web3.sha3(labels[i]).slice(2), {encoding: 'hex'}); } } return node.toString(); }
 
   dateFromTimestamp(timestamp) {
     return new Date(timestamp*1000).toString();
@@ -130,7 +139,6 @@ class LoanCreator extends Component {
 
   handleEnsNameSubmit(event) {
     var _that = this,
-        ensDomain = _that.namehash(_that.state.ensNameInput),
         onlyDomain = _that.state.ensNameInput.split('.')[0],
         domainSha = _that.state.web3.sha3(onlyDomain);
     console.log('_that.state.ensNameInput');
@@ -161,8 +169,7 @@ class LoanCreator extends Component {
           else {
             var value = _that.state.web3.fromWei(result[3], 'ether').toString(),
               loanAmount = _that.state.lendableLevel * value;
-            var registrationtDate = new Date(result[2].c[0]*1000),
-              days = _that.dateFromTimestamp(registrationtDate.setDate(registrationtDate.getDate() + 30).toString());
+            var registrationtDate = new Date(result[2].c[0]*1000);
             console.log(registrationtDate);
               _that.setState({
               ensEntry: result,
@@ -253,9 +260,10 @@ class LoanCreator extends Component {
 
   handleRequestLoanSubmit(event) {
     var _that = this,
-      onlyDomain = _that.state.ensNameInput.split('.')[0];
+      onlyDomain = _that.state.ensNameInput.split('.')[0],
+      domainSha = _that.state.web3.sha3(onlyDomain);
     // Populate state from Market deployment
-    _that.state.loanManager.createLoan.sendTransaction(onlyDomain, {from: _that.state.userAccount}, function(err, result) {
+    _that.state.loanManager.createLoan.sendTransaction(onlyDomain, domainSha, {from: _that.state.userAccount}, function(err, result) {
       console.log(err);
       console.log(result);
       if (err) {
@@ -293,7 +301,7 @@ class LoanCreator extends Component {
     this.setState({loanTermsAccepted: !this.state.loanTermsAccepted});
   };
 
-  renderLoanSpecs() {
+  renderLoanSpecs = () => {
     const {etherLocked, interestRatePerDay, loanOffered, loanPeriod, ensNameInput} = this.state;
 
     return (
@@ -326,19 +334,138 @@ class LoanCreator extends Component {
     )
   }
 
-  renderStepActions(step) {
+  _handleCollateralTypeChange = (event, index, value) => this.setState({collateralType: value});
+
+  renderContentStep1 = () => {
+    return (
+      <div style={{margin: 'auto'}}>
+        <SelectField
+          floatingLabelText="Choose your collateral type"
+          value={this.state.collateralType}
+          onChange={this._handleCollateralTypeChange}
+        >
+          <MenuItem value={this.state.CollateralTypeENS} primaryText={this.state.CollateralTypeENS} />
+          <MenuItem value={this.state.CollateralTypeBNT} primaryText={this.state.CollateralTypeBNT} disabled={true} />
+          <MenuItem value={this.state.CollateralTypeMLN} primaryText={this.state.CollateralTypeMLN} disabled={true} />
+          <MenuItem value={this.state.CollateralTypeDGX} primaryText={this.state.CollateralTypeDGX} disabled={true} />
+          <MenuItem value={this.state.CollateralTypeSNT} primaryText={this.state.CollateralTypeSNT} disabled={true} />
+        </SelectField>
+        <br />
+        <TextField
+            hintText="Eg, domainname.lendroid"
+            floatingLabelText="Please enter the full domain name"
+            floatingLabelFixed={true}
+            value={this.state.ensNameInput}
+            onChange={this.handleEnsNameInputChange}
+        />
+        <p>
+          Don't have an ENS domain?. Click <a href="#">here</a> to get one.
+        </p>
+        <div style={{margin: '12px 0'}}>
+            <RaisedButton
+                label={"Proceed"}
+                disableTouchRipple={true}
+                disableFocusRipple={true}
+                primary={true}
+                onTouchTap={this.handleEnsNameSubmit}
+                style={{marginRight: 12}}
+            />
+        </div>
+      </div>
+    );
+  }
+
+  renderContentStep2 = () => {
+    return (
+      <div style={{margin: 'auto'}}>
+        <p>We propose the following loan terms.</p>
+        { this.renderLoanSpecs() }
+        <div style={{margin: '12px 0'}}>
+            <RaisedButton
+                label={'Deposit "' + this.state.ensNameInput + '" with Us'}
+                disableTouchRipple={true}
+                disableFocusRipple={true}
+                primary={true}
+                onTouchTap={this.handleTransferDeedSubmit}
+                style={{marginRight: 12}}
+            />
+            <FlatButton
+                label="Back to Previous Step"
+                disabled={this.state.stepIndex === 0}
+                disableTouchRipple={true}
+                disableFocusRipple={true}
+                onTouchTap={this.handlePrev}
+            />
+        </div>
+      </div>
+    );
+  }
+
+  renderContentStep3 = () => {
+    return (
+      <div style={{margin: 'auto'}}>
+        <p>
+            Changed Your Mind?
+        </p>
+        <div style={{margin: '12px 0'}}>
+            <FlatButton
+                label="Reclaim Your Deposit"
+                disabled={this.state.stepIndex === 0}
+                disableTouchRipple={true}
+                disableFocusRipple={true}
+                onTouchTap={this.handleReclaimDeedSubmit}
+            />
+        </div>
+        <p>
+            Otherwise, please accept our Terms and Conditions by clicking on the checkbox.
+            { this.renderLoanSpecs() }
+            <Checkbox
+                label="I accept the Terms and Conditions"
+                checked={this.state.loanTermsAccepted}
+                onCheck={this.toggleLoanTermsAcceptance}
+            />
+        </p>
+        <div style={{margin: '12px 0'}}>
+            <RaisedButton
+                label="Borrow Your Loan"
+                disabled={!this.state.loanTermsAccepted}
+                disableTouchRipple={true}
+                disableFocusRipple={true}
+                primary={true}
+                onTouchTap={this.handleRequestLoanSubmit}
+                style={{marginRight: 12}}
+            />
+        </div>
+      </div>
+    );
+  }
+
+  renderStepContent = () => {
+    const {stepIndex} = this.state;
+    switch(stepIndex) {
+      case 1:
+        this.renderContentStep1();
+        break;
+      case 2:
+        this.renderContentStep2();
+        break;
+      case 3:
+        this.renderContentStep3();
+        break;
+      case 4:
+        // this.renderContentStep4();
+        break;
+      default:
+        break;
+      return null;
+    }
+  }
+
+  renderStepActions = (step) => {
     const {stepIndex} = this.state;
 
     return (
       <div style={{margin: '12px 0'}}>
-        <RaisedButton
-          label={stepIndex === 2 ? 'Finish' : 'Next'}
-          disableTouchRipple={true}
-          disableFocusRipple={true}
-          primary={true}
-          onTouchTap={this.handleNext}
-          style={{marginRight: 12}}
-        />
         {step > 0 && (
           <FlatButton
             label="Back"
@@ -348,115 +475,73 @@ class LoanCreator extends Component {
             onTouchTap={this.handlePrev}
           />
         )}
+        <RaisedButton
+          label={stepIndex === 2 ? 'Finish' : 'Next'}
+          disableTouchRipple={true}
+          disableFocusRipple={true}
+          primary={true}
+          onTouchTap={this.handleNext}
+          style={{marginLeft: 12}}
+        />
       </div>
     );
+  }
+
+  getStepContent = (stepIndex) => {
+    switch (stepIndex) {
+      case 0:
+        return this.renderContentStep1();
+      case 1:
+        return this.renderContentStep2();
+      case 2:
+        return this.renderContentStep3();
+      default:
+        // return this.renderContentStep1();
+        break;
+    }
   }
 
   render() {
     
     const {finished, stepIndex} = this.state;
+    const contentStyle = {margin: '0 16px'};
 
     return (
-        <div style={{margin: 'auto'}}>
-            <Stepper activeStep={stepIndex} orientation="vertical">
-                <Step>
-                    <StepLabel>Verify Your ENS Domain</StepLabel>
-                    <StepContent>
-                        <TextField
-                            hintText="Eg, domainname.lendroid"
-                            floatingLabelText="Please enter the full domain name"
-                            floatingLabelFixed={true}
-                            value={this.state.ensNameInput}
-                            onChange={this.handleEnsNameInputChange}
-                        />
-                        <div style={{margin: '12px 0'}}>
-                            <RaisedButton
-                                label={'Verify "' + this.state.ensNameInput + '"'}
-                                disableTouchRipple={true}
-                                disableFocusRipple={true}
-                                primary={true}
-                                onTouchTap={this.handleEnsNameSubmit}
-                                style={{marginRight: 12}}
-                            />
-                        </div>
-                    </StepContent>
-                </Step>
-                <Step>
-                    <StepLabel>Deposit Your ENS Domain</StepLabel>
-                    <StepContent>
-                    <p>We propose the following loan terms.</p>
-                    { this.renderLoanSpecs() }
-                    <div style={{margin: '12px 0'}}>
-                        <RaisedButton
-                            label={'Deposit "' + this.state.ensNameInput + '" with Us'}
-                            disableTouchRipple={true}
-                            disableFocusRipple={true}
-                            primary={true}
-                            onTouchTap={this.handleTransferDeedSubmit}
-                            style={{marginRight: 12}}
-                        />
-                        <FlatButton
-                            label="Back to Domain Verification Step"
-                            disabled={this.state.stepIndex === 0}
-                            disableTouchRipple={true}
-                            disableFocusRipple={true}
-                            onTouchTap={this.handlePrev}
-                        />
-                    </div>
-                    </StepContent>
-                </Step>
-                <Step>
-                    <StepLabel>Confirm and Borrow Your Loan</StepLabel>
-                    <StepContent>
-                    <p>
-                        Changed Your Mind?
-                    </p>
-                    <div style={{margin: '12px 0'}}>
-                        <FlatButton
-                            label="Reclaim Your Deposit"
-                            disabled={this.state.stepIndex === 0}
-                            disableTouchRipple={true}
-                            disableFocusRipple={true}
-                            onTouchTap={this.handleReclaimDeedSubmit}
-                        />
-                    </div>
-                    <p>
-                        Otherwise, please accept our Terms and Conditions by clicking on the checkbox.
-                        { this.renderLoanSpecs() }
-                        <Checkbox
-                            label="I accept the Terms and Conditions"
-                            checked={this.state.loanTermsAccepted}
-                            onCheck={this.toggleLoanTermsAcceptance}
-                        />
-                    </p>
-                    <div style={{margin: '12px 0'}}>
-                        <RaisedButton
-                            label="Borrow Your Loan"
-                            disabled={!this.state.loanTermsAccepted}
-                            disableTouchRipple={true}
-                            disableFocusRipple={true}
-                            primary={true}
-                            onTouchTap={this.handleRequestLoanSubmit}
-                            style={{marginRight: 12}}
-                        />
-                    </div>
-                    </StepContent>
-                </Step>
-            </Stepper>
-            {finished && (
-              <p style={{margin: '20px 0', textAlign: 'center'}}>
-                  Congratulations! Your Loan period with us has started. Please feel free to reach out to us on Slack if you have any questions. Meanwhile, also feel free to <a
-                  href="#"
-                  onClick={(event) => {
-                      event.preventDefault();
-                      this.setState({stepIndex: 0, finished: false, ensNameInput: ''});
-                  }}
-                  >
-                  click here
-                  </a> if you would like to borrow another loan.
-              </p>
-            )}
+      <div style={{width: '100%', maxWidth: 700, margin: 'auto'}}>
+        <Stepper activeStep={stepIndex}>
+          <Step>
+            <StepLabel>Choose Collateral</StepLabel>
+          </Step>
+          <Step>
+            <StepLabel>Deposit Collateral</StepLabel>
+          </Step>
+          <Step>
+            <StepLabel>Confirm and Avail Loan</StepLabel>
+          </Step>
+          <Step>
+            <StepLabel>Close Loan</StepLabel>
+          </Step>
+        </Stepper>
+        <div style={contentStyle}>
+          {finished ? (
+            <p>
+              <a
+                href="#"
+                onClick={(event) => {
+                  event.preventDefault();
+                  this.setState({stepIndex: 0, finished: false});
+                }}
+              >
+                Click here
+              </a> to reset the example.
+            </p>
+          ) : (
+            <div>
+              <p>{this.getStepContent(stepIndex)}</p>
+            </div>
+          )}
         </div>
+      </div>
     );
   }
 }
