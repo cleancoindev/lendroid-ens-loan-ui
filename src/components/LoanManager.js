@@ -52,6 +52,9 @@ class LoanManager extends Component {
         etherLocked: null,
         loanOffered: null,
         loanPeriod: null,
+        collateralDeposited: false,
+        isLoanActive: false,
+        collateralEncumbered: false,
         // Collateral specifics
         collateralType: 'ENS',
         CollateralTypeENS: 'ENS',
@@ -150,8 +153,8 @@ class LoanManager extends Component {
   _handleEnsNameSubmit = (event) => {
     if (!this.state.ensNameInput) return false;
     var _that = this,
-        onlyDomain = _that.state.ensNameInput.split('.')[0],
-        domainSha = _that.state.web3.sha3(onlyDomain);
+      onlyDomain = _that.state.ensNameInput.split('.')[0],
+      domainSha = _that.state.web3.sha3(onlyDomain);
     console.log('_that.state.ensNameInput');
     console.log(_that.state.ensNameInput);
     console.log('domainSha');
@@ -183,22 +186,29 @@ class LoanManager extends Component {
                   etherLocked: null,
                   loanOffered: null,
                   loanPeriod: null,
+                  collateralDeposited: false,
+                  collateralEncumbered: false,
+                  isLoanActive: false
                 })
               }
               else {
                 var currentStep = 1;
+                _that.setState({collateralDeposited: true})
                 _that.state.loanManager.loans.call(deedAddress, function(err, loan) {
                   console.log('loan');
                   console.log(loan);
                   if ((loan[3] === _that.state.userAccount) && (loan[4] === deedAddress)) {
                     console.log('The loan is active');
                     // currentStep = 2;
-
+                    _that.setState({
+                      collateralEncumbered: true,
+                      isLoanActive: true
+                    })
                   }
                 });
                 var value = _that.state.web3.fromWei(result[3], 'ether').toString(),
-              loanAmount = (_that.state.lendableLevel * value) / (10 ** _that.state.loanManagerMathDecimals),
-              registrationtDate = new Date(result[2].c[0]*1000);
+                loanAmount = (_that.state.lendableLevel * value) / (10 ** _that.state.loanManagerMathDecimals),
+                registrationtDate = new Date(result[2].c[0]*1000);
               console.log(registrationtDate);
                 _that.setState({
                   ensEntry: result,
@@ -208,8 +218,10 @@ class LoanManager extends Component {
                   loanPeriod: registrationtDate.toString(),
                   deedTransferred: true,
                   deedReclaimed: false,
-                  stepIndex: currentStep
+                  stepIndex: currentStep,
                 });
+                console.log('_that.state');
+                console.log(_that.state);
                 _that._handleNext();
               }
             });
@@ -227,6 +239,9 @@ class LoanManager extends Component {
                 loanPeriod: registrationtDate.toString(),
                 deedTransferred: false,
                 deedReclaimed: false,
+                collateralDeposited: false,
+                collateralEncumbered: false,
+                isLoanActive: false
               });
             _that._handleNext();
           }
@@ -379,6 +394,67 @@ class LoanManager extends Component {
     this.setState({invalidDomainDialogOpen: false});
   };
 
+  _renderWithdrawAndCloseSpecs = () => {
+    const { collateralType, ensNameInput, collateralDeposited, isLoanActive, collateralEncumbered } = this.state;
+    const textDecorationDeposited = (collateralDeposited && !isLoanActive && !collateralEncumbered) ? "none" : "line-through";
+    const textDecorationEncumbered = (collateralDeposited && isLoanActive && collateralEncumbered) ? "none" : "line-through";
+    const paperStep3Style = {
+      margin: 10,
+      textAlign: 'justify',
+      display: 'inline-block',
+      color: "#555",
+      fontFamily: "PT Serif, Times New Roman, serif",
+      backgroundColor: "white",
+      fontSize: 14,
+      lineHeight: "1.52em",
+      margin: "10 auto",
+      padding: "2.5% 5%",
+      width: "45%"
+    };
+    return (
+      <Paper style={paperStep3Style} zDepth={2} rounded={false}>
+        <Table style={{textAlign: "center"}}>
+            <TableBody displayRowCheckbox={false}>
+                <TableRow>
+                    <TableRowColumn>
+                      <h4>Collateral type</h4>
+                    </TableRowColumn>
+                    <TableRowColumn>{ collateralType }</TableRowColumn>
+                </TableRow>
+                <TableRow>
+                    <TableRowColumn>
+                      <h4>Collateral name</h4>
+                    </TableRowColumn>
+                    <TableRowColumn>{ ensNameInput }</TableRowColumn>
+                </TableRow>
+                <TableRow>
+                    <TableRowColumn>
+                      <h4>Status</h4>
+                    </TableRowColumn>
+                    <TableRowColumn>
+                      <ul style={{paddingLeft: 0}}>
+                        <li style={{textDecoration: textDecorationDeposited}}>Free to withdraw</li>
+                        <li style={{textDecoration: textDecorationEncumbered}}>Locked</li>
+                      </ul>
+                    </TableRowColumn>
+                </TableRow>
+            </TableBody>
+        </Table>
+        <div style={{margin: '12px 0'}}>
+          <RaisedButton
+            label="Withdraw Your Collateral"
+            disabled={!(collateralDeposited && !isLoanActive && !collateralEncumbered)}
+            disableTouchRipple={true}
+            disableFocusRipple={true}
+            primary={true}
+            onTouchTap={this._handleReclaimDeedSubmit}
+            style={{marginRight: 12}}
+          />
+        </div>
+      </Paper>
+    )
+  }
+
   _renderContentStep1 = () => {
     const invalidDomainNameDialogActions = [
         <FlatButton
@@ -513,7 +589,8 @@ class LoanManager extends Component {
       fontSize: 14,
       lineHeight: "1.52em",
       margin: "10 auto",
-      padding: "2.5% 5%"
+      padding: "2.5% 5%",
+      width: "45%"
     };
     return (
       <div style={{margin: "auto"}}>
@@ -521,15 +598,6 @@ class LoanManager extends Component {
           <p style={{textAlign: "center", fontWeight: "bold"}}>
               Loan Terms
           </p>
-          {/* <div style={{margin: '12px 0'}}>
-              <FlatButton
-                  label="Reclaim Your Deposit"
-                  disabled={this.state.stepIndex === 0}
-                  disableTouchRipple={true}
-                  disableFocusRipple={true}
-                  onTouchTap={this._handleReclaimDeedSubmit}
-              />
-          </div> */}
           { this._renderLoanSpecs() }
           <p style={{marginTop: 50, textAlign: "center", fontSize: 14, lineHeight: "1.52em"}}>
             I understand that failing to close the loan by { this.state.loanPeriod } will result in forfeiting the rights to reclaim my collateral.
@@ -540,6 +608,7 @@ class LoanManager extends Component {
             onCheck={this._toggleLoanTermsAcceptance}
           />
         </Paper>
+        { this._renderWithdrawAndCloseSpecs() }
         <div style={{textAlign: "center", margin: '12px 0'}}>
           <RaisedButton
             label="Avail Loan"
@@ -550,7 +619,7 @@ class LoanManager extends Component {
             onTouchTap={this._handleRequestLoanSubmit}
             style={{marginRight: 12}}
           />
-          </div>
+        </div>
       </div>
     );
   }
