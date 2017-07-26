@@ -84,3 +84,46 @@ li.react-tabs__tab--selected {
 div.react-tabs__tab-panel {
   padding: 0 40px;
 }
+
+.social-media-icons-container a {
+  flex: none !important;
+}
+
+.social-media-icon{
+	width:40px;
+	height:40px;
+	margin-right:10px;
+  float:left;
+  flex: none;
+}
+
+.social-media-fb{
+	background-size: cover;
+	content:url(./images/socialmedia/Facebook.png);
+}
+
+.social-media-medium{
+	background-size: cover;
+	content:url(./images/socialmedia/medium.png);
+}
+.social-media-slack{
+	background-size: cover;
+	content:url(./images/socialmedia/slack.png);
+}
+.social-media-linkedin{
+	background-size: cover;
+	content:url(./images/socialmedia/Linkedin.png);
+}
+.social-media-twitter{
+	background-size: cover;
+	content:url(./images/socialmedia/Twitter.png);
+
+}
+.social-media-github{
+	background-size: cover;
+	content:url(./images/socialmedia/Github.png);
+}
+.social-media-youtube{
+	background-size: cover;
+	content:url(./images/socialmedia/YouTube.png);
+}

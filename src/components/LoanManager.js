@@ -660,11 +660,12 @@ class LoanManager extends Component {
       fontSize: 14,
       lineHeight: "1.52em",
       margin: "10 auto",
-      padding: "2.5% 5%"
+      padding: "2.5% 5%",
+      borderRadius: "5px"
     };
     return (
       <div style={{margin: 'auto', textAlign: "center"}}>
-        <Paper style={paperStep1Style} zDepth={2} rounded={false}>
+        <Paper style={paperStep1Style} zDepth={4} rounded={true}>
           <SelectField
             floatingLabelText="Choose your collateral type"
             value={this.state.collateralType}
@@ -687,17 +688,17 @@ class LoanManager extends Component {
           <p>
             Don't have an ENS domain?. Click <a href="#">here</a> to get one.
           </p>
-        </Paper>
-        <div style={{margin: '12px 0'}}>
+          <div style={{margin: '12px auto', textAlign: 'center'}}>
             <RaisedButton
-                label={"Proceed"}
-                disableTouchRipple={true}
-                disableFocusRipple={true}
-                primary={true}
-                onTouchTap={this._handleEnsNameSubmit}
-                style={{marginRight: 12}}
+              label={"Proceed"}
+              disableTouchRipple={true}
+              disableFocusRipple={true}
+              primary={true}
+              onTouchTap={this._handleEnsNameSubmit}
+              style={{marginRight: 12}}
             />
-        </div>
+          </div>
+        </Paper>
         <Dialog
           title="Invalid Domain input"
           actions={invalidDomainNameDialogActions}
@@ -721,11 +722,12 @@ class LoanManager extends Component {
       fontSize: 14,
       lineHeight: "1.52em",
       margin: "10 auto",
-      padding: "2.5% 5%"
+      padding: "2.5% 5%",
+      borderRadius: "5px"
     };
     return (
       <div style={{margin: 'auto'}}>
-        <Paper style={paperStep2Style} zDepth={2} rounded={false}>
+        <Paper style={paperStep2Style} zDepth={4} rounded={true}>
           <p>
             In the following steps, the collateral is locked in a smart contract (Lendroid Collateral Manager) 
             deployed at:{this.state.collateralManagerAddress}. At any point in time, ONLY YOU can reclaim it 
@@ -766,7 +768,7 @@ class LoanManager extends Component {
   }
 
   _renderContentStep3 = () => {
-    const paperStep3Style = {
+    const paperStep3AStyle = {
       margin: 10,
       textAlign: 'justify',
       display: 'inline-block',
@@ -775,14 +777,29 @@ class LoanManager extends Component {
       backgroundColor: "white",
       fontSize: 14,
       lineHeight: "1.52em",
-      margin: "10 auto",
-      padding: "2.5% 5%",
-      width: "50%"
+      borderRadius: "5px",
+      margin: "0 2.5% 0 0",
+      padding: "1%",
+      width: "62.5%",
+    };
+    const paperStep3BStyle = {
+      margin: 10,
+      textAlign: 'justify',
+      display: 'inline-block',
+      color: "#555",
+      fontFamily: "PT Serif, Times New Roman, serif",
+      backgroundColor: "white",
+      fontSize: 14,
+      lineHeight: "1.52em",
+      borderRadius: "5px",
+      margin: "0 0 0 2.5%",
+      padding: "1%",
+      width: "32.5%",
     };
     return (
       <div style={{margin: "auto"}}>
         <div style={styles.root}>
-          <Paper style={paperStep3Style} zDepth={2} rounded={false}>
+          <Paper style={paperStep3AStyle} zDepth={4} rounded={true}>
             <p style={{textAlign: "center", fontWeight: "bold"}}>
                 Loan Terms
             </p>
@@ -808,7 +825,7 @@ class LoanManager extends Component {
               />
             </div>
           </Paper>
-          <Paper style={paperStep3Style} zDepth={2} rounded={false}>
+          <Paper style={paperStep3BStyle} zDepth={4} rounded={true}>
             { this._renderWithdrawAndCloseSpecs() }
           </Paper>
         </div>
@@ -830,12 +847,13 @@ class LoanManager extends Component {
       lineHeight: "1.52em",
       margin: "10 auto",
       padding: "2.5% 5%",
-      width: "50%"
+      width: "50%",
+      borderRadius: "5px"
     };
     return (
       <div style={{margin: "auto"}}>
         <div style={styles.root}>
-          <Paper style={paperStep4Style} zDepth={2} rounded={false}>
+          <Paper style={paperStep4Style} zDepth={4} rounded={true}>
             <Table style={paperStep4Style}>
               <TableBody displayRowCheckbox={false}>
                 <TableRow>
@@ -902,7 +920,7 @@ class LoanManager extends Component {
               Thank you for using Lendroid!
             </p>
           </Paper>
-          <Paper style={paperStep4Style} zDepth={2} rounded={false}>
+          <Paper style={paperStep4Style} zDepth={4} rounded={true}>
             { this._renderWithdrawAndCloseSpecs() }
             <Divider />
             <div style={{textAlign: "center", margin: '12px 0'}}>
