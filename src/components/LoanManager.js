@@ -499,7 +499,7 @@ class LoanManager extends Component {
   };
 
   _renderLoanSpecs = () => {
-    const {etherLocked, interestRatePerDay, loanOffered, loanExpiry, ensNameInput, loanManagerMathDecimals} = this.state;
+    const {etherLocked, interestRatePerDay, loanOffered, loanExpiry, loanManagerMathDecimals} = this.state;
     const paperStep3Style = {
       textAlign: 'center',
     };
@@ -532,7 +532,7 @@ class LoanManager extends Component {
                       <h4>Interest rate (per day)</h4>
                       For the demo, the interest rate is fixed. In the future the interest rate will be driven by the market
                     </TableRowColumn>
-                    <TableRowColumn>{ interestRatePerDay / (10 ** loanManagerMathDecimals) } %</TableRowColumn>
+                    <TableRowColumn>{ interestRatePerDay / (10 ** loanManagerMathDecimals) * 100 } %</TableRowColumn>
                 </TableRow>
                 <TableRow>
                     <TableRowColumn>
@@ -613,7 +613,6 @@ class LoanManager extends Component {
         />
       ];
     const paperStep1Style = {
-      margin: 10,
       textAlign: 'justify',
       display: 'inline-block',
       color: "#555",
@@ -675,7 +674,6 @@ class LoanManager extends Component {
 
   _renderContentStep2 = () => {
     const paperStep2Style = {
-      margin: 10,
       textAlign: 'justify',
       display: 'inline-block',
       color: "#555",
@@ -731,7 +729,6 @@ class LoanManager extends Component {
 
   _renderContentStep3 = () => {
     const paperStep3AStyle = {
-      margin: 10,
       textAlign: 'justify',
       display: 'inline-block',
       color: "#555",
@@ -745,7 +742,6 @@ class LoanManager extends Component {
       width: "62.5%",
     };
     const paperStep3BStyle = {
-      margin: 10,
       textAlign: 'justify',
       display: 'inline-block',
       color: "#555",
@@ -796,10 +792,9 @@ class LoanManager extends Component {
   }
 
   _renderContentStep4 = () => {
-    const {etherLocked, interestRatePerDay, loanOffered, loanExpiry, loanStart, ensNameInput, loanManagerMathDecimals, loanAmountOwed} = this.state;
+    const {interestRatePerDay, loanOffered, loanExpiry, loanStart, loanManagerMathDecimals, loanAmountOwed} = this.state;
     
     const paperStep4AStyle = {
-      margin: 10,
       textAlign: 'justify',
       display: 'inline-block',
       color: "#555",
@@ -814,7 +809,6 @@ class LoanManager extends Component {
     };
 
     const paperStep4BStyle = {
-      margin: 10,
       textAlign: 'justify',
       display: 'inline-block',
       color: "#555",
@@ -850,7 +844,7 @@ class LoanManager extends Component {
                   <TableRowColumn>
                     <h4>Interest rate (per day)</h4>
                   </TableRowColumn>
-                  <TableRowColumn>{ interestRatePerDay / (10 ** loanManagerMathDecimals)  * 100} %</TableRowColumn>
+                  <TableRowColumn>{ interestRatePerDay / (10 ** loanManagerMathDecimals) * 100} %</TableRowColumn>
                 </TableRow>
                 <TableRow>
                   <TableRowColumn>
@@ -863,14 +857,14 @@ class LoanManager extends Component {
                     <h4>Interest accrued till date</h4>
                   </TableRowColumn>
                   <TableRowColumn>
-                    { this.state.loanAmountOwed - this.state.loanOffered } ETH
+                    { loanAmountOwed - loanOffered } ETH
                   </TableRowColumn>
                 </TableRow>
                 <TableRow>
                   <TableRowColumn>
                     <h4>Time left till expiry</h4>
                   </TableRowColumn>
-                  <TableRowColumn>{ this._dayDiff(null, this.state.loanExpiry) } days</TableRowColumn>
+                  <TableRowColumn>{ this._dayDiff(null, loanExpiry) } days</TableRowColumn>
                 </TableRow>
                 <TableRow>
                   <TableRowColumn>
@@ -956,7 +950,6 @@ class LoanManager extends Component {
         return this._renderContentStep3();
       default:
         return this._renderContentStep4();
-        break;
     }
   }
 
