@@ -48,7 +48,8 @@ class App extends Component {
       ethRegistrar: null,
       deedContract: null,
       isLoanManagerActive: false,
-      selectedLink: 0
+      selectedLink: 0,
+      network: "ropsten"
     }
   }
 
@@ -160,9 +161,9 @@ class App extends Component {
             <ul style={{textAlign: "left", fontWeight: "bold", padding: "0", lineHeight: "2em", listStyleType: "none"}}>
               <li>Market status: {this.state.isLoanManagerActive ? "Active" : "Inactive"}</li>
               <li>Your address: {this.state.userAccount}</li>
-              <li>ENS address: {this.state.ENSAddress}</li>
-              <li>Lendroid Collateral Manager address: {this.state.collateralManagerAddress}</li>
-              <li>Lendroid Loan Manager address: {this.state.loanManagerAddress}</li>
+              <li>ENS address: <a href={"https://" + this.state.network + ".etherscan.io/address/" + this.state.ENSAddress} target="_blank">{this.state.ENSAddress}</a></li>
+              <li>Lendroid Collateral Manager address: <a href={"https://" + this.state.network + ".etherscan.io/address/" + this.state.collateralManagerAddress} target="_blank">{this.state.collateralManagerAddress}</a></li>
+              <li>Lendroid Loan Manager address: <a href={"https://" + this.state.network + ".etherscan.io/address/" + this.state.loanManagerAddress} target="_blank">{this.state.loanManagerAddress}</a></li>
             </ul>
           </Paper>
         </div>
@@ -191,6 +192,7 @@ class App extends Component {
               collateralManager={this.state.collateralManager}
               ethRegistrar={this.state.ethRegistrar}
               deedContract={this.state.deedContract}
+              network={this.state.network}
             />
           }
         </div>

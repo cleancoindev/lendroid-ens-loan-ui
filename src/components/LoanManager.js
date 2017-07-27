@@ -53,6 +53,7 @@ class LoanManager extends Component {
       collateralManager: props.collateralManager,
       ethRegistrar: props.ethRegistrar,
       deedContract: props.deedContract,
+      network: props.network,
       // LoanManager Contract specifics
       loanManagerMathDecimals: 4,
       isLoanManagerActive: null,
@@ -65,12 +66,10 @@ class LoanManager extends Component {
       collateralDeposited: false,
       collateralEncumbered: false,
       // For an active loan
+      loanObject: null,
       isLoanActive: false,
       loanDeedAddress: null,
       loanStart: null,
-      daysSinceLoanStart: null,
-      interestAccruedTillDate: null,
-      daysLeftForLoanExpiry: null,
       loanAmountOwed: null,
       // Collateral specifics
       collateralType: 'ENS',
@@ -82,8 +81,6 @@ class LoanManager extends Component {
       // Loan specifics
       ensNameInput: '',
       isOwner: false,
-      deedTransferred: false,
-      deedReclaimed: false,
       loanTermsAccepted: false,
       // Stepper params
       finished: false,
@@ -104,19 +101,19 @@ class LoanManager extends Component {
     // Event watchers on Loan contract
     // TODO: Deposit Collateral
     // Create Loan
-    var LoanCreatedWatcher = this.state.loanManager.loanCreated({toAddress: this.state.userAccount});
+    var LoanCreatedWatcher = _that.state.loanManager.loanCreated({toAddress: _that.state.userAccount});
     LoanCreatedWatcher.watch(function(error, result){
       if (!error) {
         console.log(result);
-        _that._handleNext();
         _that.setState({
           loadingText: "",
           showLoading: false,
         });
+        _that._showLoanScreen();
       }
     });
     // Close Loan
-    var LoanClosedWatcher = this.state.loanManager.loanClosed({by: this.state.userAccount});
+    var LoanClosedWatcher = _that.state.loanManager.loanClosed({by: _that.state.userAccount});
     LoanClosedWatcher.watch(function(error, result){
       if (!error) {
         console.log(result);
@@ -131,17 +128,16 @@ class LoanManager extends Component {
       }
     });
     // Withdraw Collateral
-    var CollateralWithdrawnWatcher = this.state.collateralManager.CollateralWithdrawn({toAddress: this.state.userAccount});
+    var CollateralWithdrawnWatcher = _that.state.collateralManager.CollateralWithdrawn({toAddress: _that.state.userAccount});
     CollateralWithdrawnWatcher.watch(function(error, result){
       if (!error) {
         console.log(result);
         _that.setState({
           loadingText: "",
-          showLoading: false,
-          isLoanActive: false,
-          collateralEncumbered: false,
-          collateralDeposited: false,
+          showLoading: false
         });
+        _that._prepareDepositCollateralScreen();
+        _that._handleNext();
       }
     });
   }
@@ -242,6 +238,87 @@ class LoanManager extends Component {
     return Math.round((second-first)/(1000*60*60*24));
   };
 
+  _prepareDepositCollateralScreen = () => {
+    var _that = this,
+      ensEntry = _that.state.ensEntry,
+      value = _that.state.web3.fromWei(ensEntry[3], 'ether').toString();
+    _that.setState({
+      ensLoanNode: null,
+      etherLocked: value,
+      loanOffered: (_that.state.lendableLevel * value) / (10 ** _that.state.loanManagerMathDecimals),
+      loanExpiry: new Date(ensEntry[2].c[0]*1000),
+      collateralDeposited: false,
+      collateralEncumbered: false,
+      isLoanActive: false,
+      stepIndex: 0
+    });
+  }
+
+  _prepareAvailLoanScreen = () => {
+    var _that = this,
+      ensEntry = _that.state.ensEntry,
+      value = _that.state.web3.fromWei(ensEntry[3], 'ether').toString(),
+      loanAmount = (_that.state.lendableLevel * value) / (10 ** _that.state.loanManagerMathDecimals),
+      registrationtDate = new Date(ensEntry[2].c[0]*1000);
+    var tmpRegDate = registrationtDate,
+      expirationDate = new Date(tmpRegDate.setDate(tmpRegDate.getDate()+30));
+    _that.setState({
+      ensLoanNode: null,
+      stepIndex: 1,
+      collateralDeposited: true,
+      isLoanActive: false,
+      collateralEncumbered: false,
+      etherLocked: value,
+      loanOffered: loanAmount,
+      loanExpiry: expirationDate,
+    });
+  }
+
+  _prepareActiveLoanScreen = () => {
+    var _that = this;
+    _that.setState({
+      stepIndex: 2
+    })
+    _that.state.loanManager.amountOwed.call(_that.state.loanDeedAddress, function(err, amount) {
+      _that.setState({
+        collateralEncumbered: true,
+        isLoanActive: true,
+        loanStart: new Date(_that.state.loanObject[2].c[0]*1000),
+        loanAmountOwed: _that.state.web3.fromWei(amount, 'ether').toString()
+      });
+    })
+  }
+
+  _resetState = () => {
+    this.setState({
+      ensNameInput: '',
+      invalidDomainDialogOpen: true,
+      etherLocked: null,
+      loanOffered: null,
+      loanExpiry: null,
+      collateralDeposited: false,
+      collateralEncumbered: false,
+      isLoanActive: false,
+      stepIndex: 0,
+      loanDeedAddress: null
+    })
+  }
+
+  _showLoanScreen = () => {
+    var _that = this;
+    _that.state.loanManager.loans.call(_that.state.loanDeedAddress, function(err, loan) {
+      _that.setState({
+        loanObject: loan
+      })
+      _that._prepareAvailLoanScreen();
+      // Check if the loan is active
+      if ((_that.state.loanObject[3] === _that.state.userAccount) && (_that.state.loanObject[4] === _that.state.loanDeedAddress) && (_that.state.loanObject[10].toString() === '1')) {
+        _that._prepareActiveLoanScreen();
+      }
+      _that._handleNext();
+    });
+  }
+
   _handleEnsNameSubmit = (event) => {
     if (!this.state.ensNameInput) return false;
     var _that = this,
@@ -251,30 +328,41 @@ class LoanManager extends Component {
     console.log(_that.state.ensNameInput);
     console.log('domainSha');
     console.log(domainSha);
-    _that.state.ethRegistrar.entries.call(domainSha, function(err, result) {
+    // Query ENS Eth Registrar for details of the ENS domain
+    _that.state.ethRegistrar.entries.call(domainSha, function(err, ensEntry) {
       if (err) {
         alert(err);
       }
       else {
-        console.log(result);
-        var deedAddress = result[1],
+        console.log(ensEntry);
+        var deedAddress = ensEntry[1],
             deed = _that.state.deedContract.at(deedAddress);
+        _that.setState({
+          ensEntry: ensEntry,
+          loanDeedAddress: deedAddress
+        });
+        // Set up watcher on the deed to capture the event after the collateral is successfully deposited.
+        // aka, listen to the Deed event when owner is successfully changed to the ENSCollateralManager.
         _that.state.depositCollateralWatcher = deed.OwnerChanged({newOwner: _that.state.userAccount});
-        _that.state.depositCollateralWatcher.watch(function(error, result){
-          if ((!error) && (result.transactionHash === _that.state.depositCollateralWatcherTxHash)) {
-            console.log(result);
+        _that.state.depositCollateralWatcher.watch(function(error, ensEntry){
+          if ((!error) && (ensEntry.transactionHash === _that.state.depositCollateralWatcherTxHash)) {
+            console.log(ensEntry);
             _that._handleNext();
             _that.setState({
               loadingText: "",
               showLoading: false,
             });
+            _that._showLoanScreen();
           }
         });
+        // Check to see if the user is the deed owner. If he is, then it means he hasn't deposited
+        // the collateral to our contract yet. Therefore, take him to step 1 (Deposit Collateral Screen)
         deed.owner.call(function(err, deedOwnerAddress){
           _that.setState({
             isOwner: deedOwnerAddress === _that.state.userAccount
           })
-          // Populate state with Auction parameters
+          // If the user is not the deed owner, there's a chance he might have already deposited
+          // the collateral to us. Therefore, check to see if he is the previous owner
           if (!_that.state.isOwner) {
             deed.previousOwner.call(function(err, deedPreviousOwnerAddress) {
               console.log('deedPreviousOwnerAddress');
@@ -282,115 +370,21 @@ class LoanManager extends Component {
               _that.setState({
                 isOwner: deedPreviousOwnerAddress === _that.state.userAccount
               })
+              // If the user is not the pevious owner, it means he neither owns the collateral nor
+              // has transferred it to our contract. Therefore, inform him that further action 
+              // cannot be performed.
               if (!_that.state.isOwner) {
-                _that.setState({
-                  ensNameInput: '',
-                  invalidDomainDialogOpen: true,
-                  etherLocked: null,
-                  loanOffered: null,
-                  loanExpiry: null,
-                  collateralDeposited: false,
-                  collateralEncumbered: false,
-                  isLoanActive: false,
-                  stepIndex: 0,
-                  loanDeedAddress: null
-                })
+                _that._resetState();
               }
+              // If the user is the previous owner, check if there already exists a loan for this deed
               else {
-                _that.state.loanManager.loans.call(deedAddress, function(err, loan) {
-                  
-                  var value = _that.state.web3.fromWei(result[3], 'ether').toString(),
-                    loanAmount = (_that.state.lendableLevel * value) / (10 ** _that.state.loanManagerMathDecimals),
-                    registrationtDate = new Date(result[2].c[0]*1000),
-                    today = new Date();
-                  // Check if the contract has enough balance to offer a loan
-
-                  // Set values for step 1
-                  console.log(registrationtDate);
-                  var tmpRegDate = registrationtDate,
-                    expirationDate = new Date(tmpRegDate.setDate(tmpRegDate.getDate()+30));
-                  console.log(expirationDate);
-                  _that.setState({
-                    ensEntry: result,
-                    ensLoanNode: null,
-                    stepIndex: 1,
-                    collateralDeposited: true,
-                    isLoanActive: false,
-                    collateralEncumbered: false,
-                    loanDeedAddress: deedAddress,
-                    etherLocked: value,
-                    loanOffered: loanAmount,
-                    loanExpiry: expirationDate.toString(),
-                    deedTransferred: true,
-                    deedReclaimed: false
-                  });
-                  console.log('loan');
-                  console.log(loan);
-                  var createdTimestamp = loan[2].toString();
-                  console.log('createdTimestamp');
-                  console.log(createdTimestamp);
-                  var daysSinceLoanTimestamp = createdTimestamp ? _that._dayDiff(null, new Date(createdTimestamp * 1000)) : createdTimestamp;
-                  console.log('daysSinceLoanTimestamp');
-                  console.log(daysSinceLoanTimestamp);
-                  if ((loan[3] === _that.state.userAccount) && (loan[4] === deedAddress) && ((daysSinceLoanTimestamp === -0) || (daysSinceLoanTimestamp > 0)) ) {
-                    console.log('loan[10].toString()');
-                    console.log(loan[10].toString());
-                    if ((loan[10].toString() === '1')) {
-                      _that.setState({
-                        stepIndex: 2
-                      });
-                      var loanStartDate = new Date(loan[2].c[0]*1000),
-                        daysSinceStart = _that._dayDiff(loanStartDate, null);
-                      console.log('The loan is active');
-                      _that.state.loanManager.amountOwed.call(deedAddress, function(err, amount) {
-                        console.log('amountOwed');
-                        console.log(amount);
-                        var amt = _that.state.web3.fromWei(amount, 'ether').toString();
-                        console.log(amt);
-                        _that.setState({
-                          loanAmountOwed: amt,
-                          interestAccruedTillDate: amt - loanAmount,
-                        });
-                      })
-                      _that.setState({
-                        collateralEncumbered: true,
-                        isLoanActive: true,
-                        loanStart: loanStartDate.toString(),
-                        daysSinceLoanStart: daysSinceStart,
-                        // interestAccruedTillDate: ((daysSinceStart -1) * _that.state.interestRatePerDay * loanAmount * 0.0001),
-                        daysLeftForLoanExpiry: _that._dayDiff(null, expirationDate),
-                      })
-                    }
-                    else {
-                      console.log('The loan is not active');
-                    }
-                  }
-                  // console.log('_that.state');
-                  // console.log(_that.state);
-                  _that._handleNext();
-                });
+                _that._showLoanScreen()
               }
             });
           }
+          // If the user is the owner of the deed, show step 2 (Deposit Collateral)
           else {
-            var value = _that.state.web3.fromWei(result[3], 'ether').toString(),
-              loanAmount = (_that.state.lendableLevel * value) / (10 ** _that.state.loanManagerMathDecimals),
-              registrationtDate = new Date(result[2].c[0]*1000);
-            console.log(registrationtDate);
-              _that.setState({
-                ensEntry: result,
-                loanDeedAddress: deedAddress,
-                ensLoanNode: null,
-                etherLocked: value,
-                loanOffered: loanAmount,
-                loanExpiry: registrationtDate.toString(),
-                deedTransferred: false,
-                deedReclaimed: false,
-                collateralDeposited: false,
-                collateralEncumbered: false,
-                isLoanActive: false,
-                stepIndex: 0
-              });
+            _that._prepareDepositCollateralScreen();
             _that._handleNext();
           }
         });
@@ -399,14 +393,10 @@ class LoanManager extends Component {
     event.preventDefault();
   }
 
-  _handleTransferDeedSubmit = (event) => {
-    console.log('_handleTransferDeedSubmit');
+  _handleDepositCollateral = (event) => {
     var _that = this;
     // Check if we can give a loan
     if (_that.state.loanContractBalance >= _that.state.loanOffered) {
-      _that.setState({
-        deedTransferred: true,
-      })
       // Populate state from Market deployment
       var onlyDomain = _that.state.ensNameInput.split('.')[0];
       _that.state.ethRegistrar.transfer(
@@ -414,11 +404,6 @@ class LoanManager extends Component {
         _that.state.collateralManagerAddress, 
         {from: _that.state.userAccount}, 
         function(err, txHash) {
-          console.log('err');
-          console.log(err);
-          console.log('txHash');
-          console.log(txHash);
-          // _that._handleNext();
           _that.setState({
             depositCollateralWatcherTxHash: txHash,
             loadingText: "Depositing Collateral ...",
@@ -434,27 +419,15 @@ class LoanManager extends Component {
     event.preventDefault();
   }
 
-  _handleReclaimDeedSubmit = (event) => {
-    console.log('_handleReclaimDeedSubmit');
+  _handleWithdrawCollateral = (event) => {
     var _that = this,
       onlyDomain = _that.state.ensNameInput.split('.')[0];
-    _that.setState({
-      deedReclaimed: true,
-    })
-    console.log(_that.state.loanManager);
     _that.state.collateralManager.withdrawCollateral.sendTransaction(_that.state.web3.sha3(onlyDomain), {from: _that.state.userAccount}, function(err, result) {
-      console.log('err');
-      console.log(err);
-      console.log('result');
-      console.log(result);
       if (err) {
         alert(err);
       }
       else {
-        // Update state with the result.
-        console.log('result');
-        console.log(result);
-        // _that._handlePrev()
+        // Listen to Event.
         _that.setState({
           loadingText: "Withdrawing Collateral ...",
           showLoading: true
@@ -471,24 +444,19 @@ class LoanManager extends Component {
         domainSha = _that.state.web3.sha3(onlyDomain);
       // Populate state from Market deployment
       _that.state.loanManager.createLoan.sendTransaction(onlyDomain, domainSha, {from: _that.state.userAccount}, function(err, result) {
-        console.log(err);
-        console.log(result);
         if (err) {
           alert(err);
         }
         else {
-          // Update state with the result.
-          console.log(result);
+          // Listen to event
           _that.setState({
             showLoading: true,
             loadingText: "Creating Loan ..."
           })
-          // _that.setState({interestRatePerDay: result.c[0]})
         }
       });
     }
     else {
-      console.log('Not enough balance');
       _that.setState({insufficientBalanceDialogOpen: true})
     }
     event.preventDefault();
@@ -497,21 +465,15 @@ class LoanManager extends Component {
   _handleCloseLoanSubmit = (event) => {
     var _that = this;
     _that.state.loanManager.closeLoan.sendTransaction(_that.state.loanDeedAddress, {from: _that.state.userAccount, value: _that.state.web3.toWei(_that.state.loanAmountOwed, 'ether')}, function(err, result) {
-      console.log('closeLoan');
-      console.log(err);
-      console.log(result);
       if (err) {
         alert(err);
       }
       else {
-        // Update state with the result.
-        console.log(result);
+        // Listen to event
         _that.setState({
           loadingText: "Closing Loan ...",
           showLoading: true
         });
-        // _that._handleNext();
-        // _that.setState({interestRatePerDay: result.c[0]})
       }
     });
     event.preventDefault();
@@ -577,7 +539,7 @@ class LoanManager extends Component {
                       <h4>Loan expiry</h4>
                       The loan is expected to be paid in full (principal + interest accrued on or before this date)
                     </TableRowColumn>
-                    <TableRowColumn>{ loanExpiry }</TableRowColumn>
+                    <TableRowColumn>{ loanExpiry.toString() }</TableRowColumn>
                 </TableRow>
             </TableBody>
         </Table>
@@ -634,7 +596,7 @@ class LoanManager extends Component {
             disableTouchRipple={true}
             disableFocusRipple={true}
             primary={true}
-            onTouchTap={this._handleReclaimDeedSubmit}
+            onTouchTap={this._handleWithdrawCollateral}
             style={{marginRight: 12}}
           />
         </div>
@@ -735,9 +697,9 @@ class LoanManager extends Component {
             the collateral remains with the smart contract until you are ready to reclaim it. 
             No one, except this address, will be able to withdraw the collateral from the LCM*. This smart contract 
             has been audited by open Zep and you can find the audit results below:<br />
-            Code: { "https://github.com/lendroidproject/lendroid-ens-loan" }
+            Code: <a href="https://github.com/lendroidproject/lendroid-ens-loan" target="_blank">https://github.com/lendroidproject/lendroid-ens-loan</a>
             <br />
-            Etherscan link: {this.state.collateralManagerAddress}
+            Etherscan link: <a href={"https://" + this.state.network + ".etherscan.io/address/" + this.state.collateralManagerAddress} target="_blank">{this.state.collateralManagerAddress}</a>
             <br />
             Audit result: 
           </p>
@@ -752,7 +714,7 @@ class LoanManager extends Component {
                 disableTouchRipple={true}
                 disableFocusRipple={true}
                 primary={true}
-                onTouchTap={this._handleTransferDeedSubmit}
+                onTouchTap={this._handleDepositCollateral}
                 style={{marginRight: 12}}
             />
             <FlatButton
@@ -794,7 +756,7 @@ class LoanManager extends Component {
       borderRadius: "5px",
       margin: "0 0 0 2.5%",
       padding: "1%",
-      width: "32.5%",
+      width: "32.5%"
     };
     return (
       <div style={{margin: "auto"}}>
@@ -805,7 +767,7 @@ class LoanManager extends Component {
             </p>
             { this._renderLoanSpecs() }
             <p style={{marginTop: 50, textAlign: "center", fontSize: 14, lineHeight: "1.52em"}}>
-              I understand that failing to close the loan by { this.state.loanExpiry } will result in forfeiting the rights to reclaim my collateral.
+              I understand that failing to close the loan by { this.state.loanExpiry.toString() } will result in forfeiting the rights to reclaim my collateral.
             </p>
             <Checkbox
               label="I understand and accept the loan terms and conditions."
@@ -834,9 +796,9 @@ class LoanManager extends Component {
   }
 
   _renderContentStep4 = () => {
-    const {etherLocked, interestRatePerDay, loanOffered, loanExpiry, loanStart, ensNameInput, loanManagerMathDecimals, daysSinceLoanStart, daysLeftForLoanExpiry, interestAccruedTillDate, loanAmountOwed} = this.state;
+    const {etherLocked, interestRatePerDay, loanOffered, loanExpiry, loanStart, ensNameInput, loanManagerMathDecimals, loanAmountOwed} = this.state;
     
-    const paperStep4Style = {
+    const paperStep4AStyle = {
       margin: 10,
       textAlign: 'justify',
       display: 'inline-block',
@@ -845,22 +807,38 @@ class LoanManager extends Component {
       backgroundColor: "white",
       fontSize: 14,
       lineHeight: "1.52em",
-      margin: "10 auto",
-      padding: "2.5% 5%",
-      width: "50%",
-      borderRadius: "5px"
+      borderRadius: "5px",
+      margin: "0 2.5% 0 0",
+      padding: "1%",
+      width: "62.5%",
     };
+
+    const paperStep4BStyle = {
+      margin: 10,
+      textAlign: 'justify',
+      display: 'inline-block',
+      color: "#555",
+      fontFamily: "PT Serif, Times New Roman, serif",
+      backgroundColor: "white",
+      fontSize: 14,
+      lineHeight: "1.52em",
+      borderRadius: "5px",
+      margin: "0 0 0 2.5%",
+      padding: "1%",
+      width: "32.5%",
+    };
+
     return (
       <div style={{margin: "auto"}}>
         <div style={styles.root}>
-          <Paper style={paperStep4Style} zDepth={4} rounded={true}>
-            <Table style={paperStep4Style}>
+          <Paper style={paperStep4AStyle} zDepth={4} rounded={true}>
+            <Table>
               <TableBody displayRowCheckbox={false}>
                 <TableRow>
                   <TableRowColumn>
                     <h4>Loan start date</h4>
                   </TableRowColumn>
-                  <TableRowColumn>{ loanStart }</TableRowColumn>
+                  <TableRowColumn>{ loanStart ? loanStart.toString() : null }</TableRowColumn>
                 </TableRow>
                 <TableRow>
                   <TableRowColumn>
@@ -872,27 +850,27 @@ class LoanManager extends Component {
                   <TableRowColumn>
                     <h4>Interest rate (per day)</h4>
                   </TableRowColumn>
-                  <TableRowColumn>{ interestRatePerDay / (10 ** loanManagerMathDecimals) } %</TableRowColumn>
+                  <TableRowColumn>{ interestRatePerDay / (10 ** loanManagerMathDecimals)  * 100} %</TableRowColumn>
                 </TableRow>
                 <TableRow>
                   <TableRowColumn>
                     <h4>Days since loan started</h4>
                   </TableRowColumn>
-                  <TableRowColumn>{ daysSinceLoanStart }</TableRowColumn>
+                  <TableRowColumn>{ this._dayDiff(loanStart, null) }</TableRowColumn>
                 </TableRow>
                 <TableRow>
                   <TableRowColumn>
                     <h4>Interest accrued till date</h4>
                   </TableRowColumn>
                   <TableRowColumn>
-                    { interestAccruedTillDate } ETH
+                    { this.state.loanAmountOwed - this.state.loanOffered } ETH
                   </TableRowColumn>
                 </TableRow>
                 <TableRow>
                   <TableRowColumn>
                     <h4>Time left till expiry</h4>
                   </TableRowColumn>
-                  <TableRowColumn>{ daysLeftForLoanExpiry } days</TableRowColumn>
+                  <TableRowColumn>{ this._dayDiff(null, this.state.loanExpiry) } days</TableRowColumn>
                 </TableRow>
                 <TableRow>
                   <TableRowColumn>
@@ -920,7 +898,7 @@ class LoanManager extends Component {
               Thank you for using Lendroid!
             </p>
           </Paper>
-          <Paper style={paperStep4Style} zDepth={4} rounded={true}>
+          <Paper style={paperStep4BStyle} zDepth={4} rounded={true}>
             { this._renderWithdrawAndCloseSpecs() }
             <Divider />
             <div style={{textAlign: "center", margin: '12px 0'}}>
