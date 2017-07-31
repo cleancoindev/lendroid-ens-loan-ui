@@ -127,3 +127,18 @@ div.react-tabs__tab-panel {
 	background-size: cover;
 	content:url(./images/socialmedia/YouTube.png);
 }
+.kovan-network{
+	background-size: cover;
+  content:url(./images/kovan-network.png);
+  height: 350px;
+}
+.section-header {
+  text-align: center;
+}
+
+table.loan-specs {
+  text-align: center;
+}
+table.loan-specs td {
+  white-space: inherit !important;
+}

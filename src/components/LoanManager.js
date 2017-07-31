@@ -41,8 +41,6 @@ const styles = {
 class LoanManager extends Component {
   constructor(props) {
     super(props)
-    console.log('props');
-    console.log(props);
     this.state = {
       loanContractBalance: 0,
       collateralManagerAddress: props.collateralManagerAddress,
@@ -51,6 +49,7 @@ class LoanManager extends Component {
       ens: props.ens,
       loanManager: props.loanManager,
       collateralManager: props.collateralManager,
+      faucet: props.faucet,
       ethRegistrar: props.ethRegistrar,
       deedContract: props.deedContract,
       network: props.network,
@@ -88,6 +87,8 @@ class LoanManager extends Component {
       // UI states
       depositCollateralWatcher: null,
       depositCollateralWatcherTxHash: null,
+      existingDomainOwnerDialogOpen: false,
+      domainRegisteredDialogOpen: false,
       invalidDomainDialogOpen: false,
       insufficientBalanceDialogOpen: false,
       showLoading: false,
@@ -99,12 +100,21 @@ class LoanManager extends Component {
     var _that = this;
     _that.instantiateContract();
     // Event watchers on Loan contract
-    // TODO: Deposit Collateral
+    // New Domain Registered to User's address
+    var DomainRegisteredWatcher = _that.state.faucet.DomainTransferred({toAddress: _that.state.userAccount});
+    DomainRegisteredWatcher.watch(function(error, result){
+      if (!error) {
+        _that.setState({
+          loadingText: "",
+          showLoading: false,
+        });
+        _that._showDomainRegisteredDialog(_that.state.web3.toUtf8(result.args.ensDomainName));
+      }
+    });
     // Create Loan
     var LoanCreatedWatcher = _that.state.loanManager.loanCreated({toAddress: _that.state.userAccount});
     LoanCreatedWatcher.watch(function(error, result){
       if (!error) {
-        console.log(result);
         _that.setState({
           loadingText: "",
           showLoading: false,
@@ -116,7 +126,6 @@ class LoanManager extends Component {
     var LoanClosedWatcher = _that.state.loanManager.loanClosed({by: _that.state.userAccount});
     LoanClosedWatcher.watch(function(error, result){
       if (!error) {
-        console.log(result);
         _that.setState({
           loadingText: "",
           showLoading: false,
@@ -131,7 +140,6 @@ class LoanManager extends Component {
     var CollateralWithdrawnWatcher = _that.state.collateralManager.CollateralWithdrawn({toAddress: _that.state.userAccount});
     CollateralWithdrawnWatcher.watch(function(error, result){
       if (!error) {
-        console.log(result);
         _that.setState({
           loadingText: "",
           showLoading: false
@@ -144,8 +152,6 @@ class LoanManager extends Component {
 
   _updateBalance = () => {
     var _that = this;
-    console.log('_that.state.loanManager');
-    console.log(_that.state.loanManager);
     _that.state.web3.eth.getBalance(_that.state.loanManager.address, function(err, result){
       if (err) {
         alert(err);
@@ -168,8 +174,6 @@ class LoanManager extends Component {
     this.state.web3.eth.getAccounts((error, accounts) => {
 
       var _that = this;
-      console.log('_that.state.loanManager');
-      console.log(_that.state.loanManager);
       // Populate state from Market deployment
       _that.state.loanManager.interestRatePerDay.call(function(err, result){
         if (err) {
@@ -319,22 +323,62 @@ class LoanManager extends Component {
     });
   }
 
+  _showDomainRegisteredDialog = (domainName) => {
+    var _that = this;
+    _that.setState({
+      ensNameInput: domainName,
+      domainRegisteredDialogOpen: true
+    });
+  }
+
+  _handleRegisterDomain = (event) => {
+    var _that = this;
+    _that.state.faucet.domainOwners.call(this.state.userAccount, {from: _that.state.userAccount}, function(err, domainName) {
+      if (err) {
+        alert(err);
+      }
+      else {
+        // Listen to Event.
+        console.log('domainName');
+        console.log(domainName);
+        if (domainName != '0x0000000000000000000000000000000000000000000000000000000000000000') {
+          _that.setState({
+            ensNameInput: _that.state.web3.toUtf8(domainName),
+            existingDomainOwnerDialogOpen: true});
+        }
+        else {
+          console.log('Transfer domain.')
+          _that.state.faucet.transferDomain.sendTransaction({from: _that.state.userAccount}, function(err, domainName) {
+            if (err) {
+              alert(err);
+            }
+            else {
+              // Listen to Event.
+              _that.setState({
+                loadingText: 'Transferring a domain to the address '+ _that.state.userAccount + ' ...',
+                showLoading: true
+              });
+            }
+          });
+        }
+      }
+    });
+    event.preventDefault();
+  }
+
   _handleEnsNameSubmit = (event) => {
     if (!this.state.ensNameInput) return false;
     var _that = this,
       onlyDomain = _that.state.ensNameInput.split('.')[0],
       domainSha = _that.state.web3.sha3(onlyDomain);
-    console.log('_that.state.ensNameInput');
-    console.log(_that.state.ensNameInput);
-    console.log('domainSha');
-    console.log(domainSha);
     // Query ENS Eth Registrar for details of the ENS domain
     _that.state.ethRegistrar.entries.call(domainSha, function(err, ensEntry) {
       if (err) {
         alert(err);
       }
       else {
-        console.log(ensEntry);
+        console.log('domainSha');
+        console.log(domainSha);
         var deedAddress = ensEntry[1],
             deed = _that.state.deedContract.at(deedAddress);
         _that.setState({
@@ -346,7 +390,6 @@ class LoanManager extends Component {
         _that.state.depositCollateralWatcher = deed.OwnerChanged({newOwner: _that.state.userAccount});
         _that.state.depositCollateralWatcher.watch(function(error, ensEntry){
           if ((!error) && (ensEntry.transactionHash === _that.state.depositCollateralWatcherTxHash)) {
-            console.log(ensEntry);
             _that._handleNext();
             _that.setState({
               loadingText: "",
@@ -365,8 +408,6 @@ class LoanManager extends Component {
           // the collateral to us. Therefore, check to see if he is the previous owner
           if (!_that.state.isOwner) {
             deed.previousOwner.call(function(err, deedPreviousOwnerAddress) {
-              console.log('deedPreviousOwnerAddress');
-              console.log(deedPreviousOwnerAddress);
               _that.setState({
                 isOwner: deedPreviousOwnerAddress === _that.state.userAccount
               })
@@ -413,7 +454,6 @@ class LoanManager extends Component {
       );
     }
     else {
-      console.log('Not enough balance');
       _that.setState({insufficientBalanceDialogOpen: true})
     }
     event.preventDefault();
@@ -500,12 +540,9 @@ class LoanManager extends Component {
 
   _renderLoanSpecs = () => {
     const {etherLocked, interestRatePerDay, loanOffered, loanExpiry, loanManagerMathDecimals} = this.state;
-    const paperStep3Style = {
-      textAlign: 'center',
-    };
 
     return (
-        <Table style={paperStep3Style}>
+        <Table className="loan-specs">
             <TableHeader displaySelectAll={false}>
                 <TableRow>
                     <TableHeaderColumn>Term</TableHeaderColumn>
@@ -547,6 +584,14 @@ class LoanManager extends Component {
   }
 
   _handleCollateralTypeChange = (event, index, value) => this.setState({collateralType: value});
+
+  _handleDomainRegisteredDialogClose = () => {
+    this.setState({domainRegisteredDialogOpen: false});
+  };
+
+  _handleExistingDomainOwnerDialogClose = () => {
+    this.setState({existingDomainOwnerDialogOpen: false});
+  };
 
   _handleInvalidDomainNameDialogClose = () => {
     this.setState({invalidDomainDialogOpen: false});
@@ -612,6 +657,22 @@ class LoanManager extends Component {
           onTouchTap={this._handleInvalidDomainNameDialogClose}
         />
       ];
+
+    const domainRegisteredDialogActions = [
+        <FlatButton
+          label="Got it"
+          primary={true}
+          onTouchTap={this._handleDomainRegisteredDialogClose}
+        />
+      ];
+
+    const existingDomainOwnerDialogActions = [
+        <FlatButton
+          label="Got it"
+          primary={true}
+          onTouchTap={this._handleExistingDomainOwnerDialogClose}
+        />
+      ];
     const paperStep1Style = {
       textAlign: 'justify',
       display: 'inline-block',
@@ -638,17 +699,22 @@ class LoanManager extends Component {
             <MenuItem value={this.state.CollateralTypeDGX} primaryText={this.state.CollateralTypeDGX} disabled={true} />
             <MenuItem value={this.state.CollateralTypeSNT} primaryText={this.state.CollateralTypeSNT} disabled={true} />
           </SelectField>
-          <br />
-          <TextField
-              hintText="Eg, domainname.lendroid"
-              floatingLabelText="Please enter the full domain name"
-              floatingLabelFixed={true}
-              value={this.state.ensNameInput}
-              onChange={this._handleEnsNameInputChange}
-          />
           <p>
-            Don't have an ENS domain?. Click <a href="#">here</a> to get one.
+            This demo is deployed on the Kovan test net, and requires an ENS domain to be tested with.
+            To have an ENS domain transferred to the address {this.state.userAccount},
+            <FlatButton 
+              label={"Click here"} 
+              primary={true} 
+              onTouchTap={this._handleRegisterDomain}
+            />
           </p>
+          <TextField
+            hintText="Eg, domainname.lendroid"
+            floatingLabelText="Please enter the full domain name"
+            floatingLabelFixed={true}
+            value={this.state.ensNameInput}
+            onChange={this._handleEnsNameInputChange}
+          />
           <div style={{margin: '12px auto', textAlign: 'center'}}>
             <RaisedButton
               label={"Proceed"}
@@ -660,6 +726,22 @@ class LoanManager extends Component {
             />
           </div>
         </Paper>
+        <Dialog
+          title="Congratulations!"
+          actions={domainRegisteredDialogActions}
+          modal={true}
+          open={this.state.domainRegisteredDialogOpen}
+        >
+          <p>The domain {this.state.ensNameInput} has been successfully transferred to the address {this.state.userAccount}. Each address can be allotted ONLY one domain.</p>
+        </Dialog>
+        <Dialog
+          title="You already have a domain registered"
+          actions={existingDomainOwnerDialogActions}
+          modal={true}
+          open={this.state.existingDomainOwnerDialogOpen}
+        >
+          It appears the domain {this.state.ensNameInput} has previously been transferred to the address {this.state.userAccount}. Each address can be allotted ONLY one domain.
+        </Dialog>
         <Dialog
           title="Invalid Domain input"
           actions={invalidDomainNameDialogActions}
@@ -681,9 +763,10 @@ class LoanManager extends Component {
       backgroundColor: "white",
       fontSize: 14,
       lineHeight: "1.52em",
-      margin: "10 auto",
-      padding: "2.5% 5%",
-      borderRadius: "5px"
+      borderRadius: "5px",
+      margin: "0 15% 2.5%",
+      padding: "1%",
+      width: "70%",
     };
     return (
       <div style={{margin: 'auto'}}>
@@ -705,8 +788,7 @@ class LoanManager extends Component {
             *During the demo period, we have a fail-safe function which lets us transfer the collateral 
             in case of an emergency. This will be phased out with time.
           </p>
-        </Paper>
-        <div style={{margin: '12px auto', textAlign: 'center'}}>
+          <div style={{margin: '12px auto', textAlign: 'center'}}>
             <RaisedButton
                 label="Deposit Collateral"
                 disableTouchRipple={true}
@@ -722,7 +804,8 @@ class LoanManager extends Component {
                 disableFocusRipple={true}
                 onTouchTap={this._handlePrev}
             />
-        </div>
+          </div>
+        </Paper>
       </div>
     );
   }
@@ -737,9 +820,9 @@ class LoanManager extends Component {
       fontSize: 14,
       lineHeight: "1.52em",
       borderRadius: "5px",
-      margin: "0 2.5% 0 0",
+      margin: "0 15% 2.5%",
       padding: "1%",
-      width: "62.5%",
+      width: "70%",
     };
     const paperStep3BStyle = {
       textAlign: 'justify',
@@ -750,14 +833,15 @@ class LoanManager extends Component {
       fontSize: 14,
       lineHeight: "1.52em",
       borderRadius: "5px",
-      margin: "0 0 0 2.5%",
+      margin: "0 15% 2.5%",
       padding: "1%",
-      width: "32.5%"
+      width: "70%",
     };
     return (
       <div style={{margin: "auto"}}>
         <div style={styles.root}>
           <Paper style={paperStep3AStyle} zDepth={4} rounded={true}>
+            <h3 className="section-header">Loan Manager</h3>
             <p style={{textAlign: "center", fontWeight: "bold"}}>
                 Loan Terms
             </p>
@@ -784,6 +868,7 @@ class LoanManager extends Component {
             </div>
           </Paper>
           <Paper style={paperStep3BStyle} zDepth={4} rounded={true}>
+            <h3 className="section-header">Collateral Manager</h3>
             { this._renderWithdrawAndCloseSpecs() }
           </Paper>
         </div>
@@ -803,9 +888,9 @@ class LoanManager extends Component {
       fontSize: 14,
       lineHeight: "1.52em",
       borderRadius: "5px",
-      margin: "0 2.5% 0 0",
+      margin: "0 15% 2.5%",
       padding: "1%",
-      width: "62.5%",
+      width: "70%",
     };
 
     const paperStep4BStyle = {
@@ -817,16 +902,17 @@ class LoanManager extends Component {
       fontSize: 14,
       lineHeight: "1.52em",
       borderRadius: "5px",
-      margin: "0 0 0 2.5%",
+      margin: "0 15% 2.5%",
       padding: "1%",
-      width: "32.5%",
+      width: "70%",
     };
 
     return (
       <div style={{margin: "auto"}}>
         <div style={styles.root}>
           <Paper style={paperStep4AStyle} zDepth={4} rounded={true}>
-            <Table>
+            <h3 className="section-header">Loan Manager</h3>
+            <Table className="loan-specs">
               <TableBody displayRowCheckbox={false}>
                 <TableRow>
                   <TableRowColumn>
@@ -885,14 +971,22 @@ class LoanManager extends Component {
                 style={{marginRight: 12}}
               />
             </div>
-            <Divider />
-            <p>
-              Your collateral is not withdrawn automatically. You can now choose to start another loan 
-              or withdraw the collateral by pressing on the button to your right. 
-              Thank you for using Lendroid!
-            </p>
           </Paper>
           <Paper style={paperStep4BStyle} zDepth={4} rounded={true}>
+            <h3 className="section-header">Collateral Manager</h3>
+            {
+              this.state.isLoanActive ?
+                null
+              :
+                <div>
+                  <p>
+                    Your collateral is not withdrawn automatically. You can now choose to start another loan 
+                    or withdraw the collateral by pressing on the button below. 
+                    Thank you for using Lendroid!
+                  </p>
+                  <Divider />
+                </div>
+            }
             { this._renderWithdrawAndCloseSpecs() }
             <Divider />
             <div style={{textAlign: "center", margin: '12px 0'}}>
